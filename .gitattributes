@@ -1,0 +1,15 @@
+# 统一换行符：仓库与工作区均用 LF（覆盖 Windows 的 core.autocrlf=true）
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF（将来添加脚本时生效）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制资源不做换行转换（作品集截图 / 录屏 / 图表 / 视频）
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.mp4  binary
+*.zip  binary
