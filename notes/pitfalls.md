@@ -29,6 +29,65 @@
 
 <!-- 在此追加新记录，最新的放最上面 -->
 
+### [2026-10-11] `uv run <命令>` 是「项目内执行」，不是全局命令查找
+
+**现象**：在 `code/playground/`（非项目目录）执行 `uv run 01-hello-llm`：
+
+```
+error: Failed to spawn: 01-hello-llm
+  cause: program not found
+```
+
+**原因**：`uv run` 的语义是「在**当前项目**里运行东西」，不是"去系统 PATH 里找命令"。`code/playground/` 下没有 `pyproject.toml`，uv 找不到项目，于是退化成把 `01-hello-llm` 当成一个系统可执行程序去 spawn，自然找不到。项目本身、依赖、`.venv` 全都正常，纯粹是「站错了地方」。
+
+**解法**：先进入项目目录（`pyproject.toml` 所在处）再执行：
+
+```bash
+cd 01-hello-llm
+uv run 01-hello-llm
+```
+
+不想 `cd` 时可用 `--directory` / `-C` 显式指定项目目录：
+
+```bash
+uv run -C ./01-hello-llm 01-hello-llm
+```
+
+**教训**：看到 `program not found` 先自问「**我在项目根吗**」，而不是去查命令拼写或 PATH。uv / poetry / npm 这类工具都遵循「按当前目录定位项目」的规则，跨目录操作必须显式指定项目。
+
+### [2026-10-11] Python 包名不能以数字开头（`01_hello_llm` 是非法标识符）
+
+**现象**：`uv init 01-hello-llm` 生成了 `src/01_hello_llm/`。项目能建、依赖能装、命令有时也能跑，看不出毛病。但只要写 `import` 就炸：
+
+```python
+from 01_hello_llm import main   # SyntaxError: invalid syntax
+import 01_hello_llm             # SyntaxError: invalid syntax
+```
+
+**原因**：Python 的**导入包名**必须是合法标识符（字母或下划线开头，只能含字母/数字/下划线）。uv 会把目录名 `01-hello-llm` 规范化成包名 `01_hello_llm`（`-` → `_`），但**开头那个数字规范不掉**，于是生成了一个语法上无法 `import` 的包名。之所以"看起来没事"，只是因为当时还没写过任何 import 语句——坑埋在那里，等写测试或拆模块时才炸。
+
+要分清两个名字：
+
+|          | 名称                           | 你的例子            | 命名规则                           |
+| -------- | ------------------------------ | ------------------- | ---------------------------------- |
+| 分发包名 | `pyproject.toml` 的 `name` | `01-hello-llm`    | 可以带`-`，PyPI 内唯一即可       |
+| 导入包名 | `src/` 下的目录名            | `01_hello_llm` ❌ | **必须是合法 Python 标识符** |
+
+两者本来就该"同名不同形"，所以 `src/` 下多一层**不是**冗余，是标准布局。
+
+**解法**：目录名可以带序号（便于排序），但**包名必须合法**。两条路：
+
+```bash
+# A. playground 实验不需要打包 —— 删掉 [build-system] / [project.scripts] 与 src/，代码放根目录 main.py
+uv run main.py
+
+# B. 要保留打包 —— 用 --name 指定合法的包名
+uv init 01-hello-llm --name hello-llm    # 得到 src/hello_llm/
+uv run hello-llm
+```
+
+**教训**：**目录名随便起，包名守规矩**。起名前先自问「这个名字要拿去 `import` 吗」，要的话必须以字母或下划线开头。同类陷阱还有：包名撞标准库（`email`、`json`、`types`）、含中文/空格/点号。
+
 ### [2026-10-10] 沙箱内 git push 失败：凭据助手起不来（命名管道被拒）
 
 **现象**：在受限沙箱里执行 `git push`，TLS 握手已通过，却卡在取凭据环节：
