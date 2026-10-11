@@ -16,11 +16,11 @@
 
 | 技能 | 等级 (0-5) | 证据 / 项目 | 备注 |
 |------|-----------|------------|------|
-| LLM 工作原理（Token、Context、Temperature） | 0 | | |
-| Prompt Engineering（Few-shot、CoT、结构化输出） | 0 | | |
+| LLM 工作原理（Token、Context、Temperature） | 1 | `code/playground/01-hello-llm` 跑通 API 调用 | 会调 API 了；机制（token 计费、context 上限、temperature 影响）待系统学 |
+| Prompt Engineering（Few-shot、CoT、结构化输出） | 0 | | 关键路径，下一个就补 |
 | Embedding & 语义搜索 | 0 | | |
 | LLM 成本模型与选型 | 0 | | |
-| 流式输出与 SSE | 0 | | |
+| 流式输出与 SSE | 2 | `code/playground/01-hello-llm` 实现非流式 + 流式两种调用；笔记：`notes/concepts/llm-response-modes.md`、`notes/concepts/sse.md` | 已能实现；协议层笔记已成文，理解待内化（补「我的理解」一节）；前端对接待补 |
 
 ## RAG
 
@@ -74,11 +74,22 @@
 
 | 技能 | 等级 (0-5) | 证据 / 项目 | 备注 |
 |------|-----------|------------|------|
-| Python | 0 | | 先填你已有的基础 |
-| Git / GitHub | 0 | | |
+| Python | 2 | 有脚本基础；跑通 API 调用 demo | 语法够用，缺工程化：模块结构、异常处理、测试 |
+| uv / 依赖与虚拟环境管理 | 2 | `uv init / add / run / python pin`，读懂 `pyproject.toml` | 日常够用；workspace、锁文件机制、发布待学 |
+| Git / GitHub | 2 | 仓库拆分提交、`.gitattributes`、`.gitignore` 例外规则、`git check-ignore` | 日常够用；分支策略、PR 流程待练 |
 | API 设计（FastAPI / Flask） | 0 | | |
 | 容器化（Docker） | 0 | | |
 | CI/CD | 0 | | |
+
+## 安全 × AI（你的差异化方向）
+
+| 技能 | 等级 (0-5) | 证据 / 项目 | 备注 |
+|------|-----------|------------|------|
+| 安全领域知识（作为 Agent 场景理解） | 3 | 网络安全从业经验 | **已有的领域优势，不是待补项**，等级请按实际校正 |
+| Prompt Injection 攻防 / OWASP LLM Top 10 | 0 | | Agent 安全的第一入口，攻防背景可直接迁移 |
+| Agent 权限与工具边界 / 威胁建模 | 0 | | 工具调用 = 把执行权限交给 LLM，本质是权限管理问题 |
+| Agent 红队测试 | 0 | | |
+| 安全日志/告警的 Agent 化（研判、降噪、响应） | 0 | | **目标求职场景** |
 
 ---
 
@@ -87,7 +98,25 @@
 > 当你计划投简历时，你希望这张表看起来什么样？
 > 先把你目标岗位对标的技能等级标出来，然后倒推学习。
 
-（待填写）
+**方向（我按我们讨论的方向填的草稿，你必须自己校正或推翻）**：
+安全方向的 Agent 应用开发 —— 用「网络安全领域理解」做差异化，
+而不是拿通用 Agent 能力和科班/大厂背景的人硬拼。
+
+**对标等级（草稿）**：
+
+| 技能 | 目标 | 当前 | 差距 / 怎么补 |
+|------|------|------|--------------|
+| Python | 4 | 2 | 补工程化：结构、异常、测试 |
+| Prompt Engineering | 4 | 0 | **先补这个**，后面全靠它 |
+| 流式输出与 SSE | 4 | 2 | 补协议层 + 用 FastAPI 暴露 SSE 接口 |
+| Function Calling / Tool Use | 4 | 0 | Agent 的地基 |
+| RAG | 3 | 0 | 能独立搭一条链路并给出评测数字 |
+| 一个 Agent 框架（建议 LangGraph） | 4 | 0 | 深入一个，别贪多 |
+| Agent 评测方法论 | 3 | 0 | 面试高频，也是你做「量化结果」的手段 |
+| Prompt Injection 攻防 | 4 | 0 | **你的差异化标签** |
+| 安全日志/告警的 Agent 化 | 4 | 0 | **目标求职场景** |
+
+**每周可投入**：待填 ← 不填这个就没法排期，roadmap 只能停在纸面。
 
 ---
 
