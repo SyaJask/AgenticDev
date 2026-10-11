@@ -14,6 +14,7 @@ build/
 # 环境与密钥（务必不要提交）
 .env
 .env.*
+!.env.example
 *.key
 secrets/
 
