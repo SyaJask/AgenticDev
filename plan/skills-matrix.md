@@ -17,10 +17,10 @@
 | 技能 | 等级 (0-5) | 证据 / 项目 | 备注 |
 |------|-----------|------------|------|
 | LLM 工作原理（Token、Context、Temperature） | 1 | `code/playground/01-hello-llm` 跑通 API 调用 | 会调 API 了；机制（token 计费、context 上限、temperature 影响）待系统学 |
-| Prompt Engineering（Few-shot、CoT、结构化输出） | 0 | | 关键路径，下一个就补 |
+| Prompt Engineering（Few-shot、CoT、结构化输出） | 1 | 结构化输出已上手：Pydantic `response_format` + `.parse()`，含流式下的结构化事件 | 只拿下了「结构化输出」这一小块；**Few-shot / CoT 尚未系统学**，仍是关键路径 |
 | Embedding & 语义搜索 | 0 | | |
 | LLM 成本模型与选型 | 0 | | |
-| 流式输出与 SSE | 2 | `code/playground/01-hello-llm` 实现非流式 + 流式两种调用；笔记：`notes/concepts/llm-response-modes.md`、`notes/concepts/sse.md` | 已能实现；协议层笔记已成文，理解待内化（补「我的理解」一节）；前端对接待补 |
+| 流式输出与 SSE | 3 | 同一实验里写了 OpenAI / Anthropic / pi-agent 三家的流式，含 sync + async、以及流式结构化输出；笔记：`notes/concepts/llm-response-modes.md`、`notes/concepts/sse.md` | 多家 SDK 的形状差异已摸清；**SSE 服务端尚未自己实现过**；前端对接待补 |
 
 ## RAG
 
@@ -74,7 +74,8 @@
 
 | 技能 | 等级 (0-5) | 证据 / 项目 | 备注 |
 |------|-----------|------------|------|
-| Python | 2 | 有脚本基础；跑通 API 调用 demo | 语法够用，缺工程化：模块结构、异常处理、测试 |
+| Python | 2 | 用到 async/await、Pydantic 模型、异常处理、类型注解 | 仍有反模式（默认参数在定义时求值）；缺模块拆分、测试、日志规范 |
+| 异步编程（asyncio） | 2 | `AsyncOpenAI` / `AsyncPiClient`；`asyncio.run`、`async for`、`async with` | 写法已上手；并发编排（gather / 限流 / 取消）与阻塞调用混用未练 |
 | uv / 依赖与虚拟环境管理 | 2 | `uv init / add / run / python pin`，读懂 `pyproject.toml` | 日常够用；workspace、锁文件机制、发布待学 |
 | Git / GitHub | 2 | 仓库拆分提交、`.gitattributes`、`.gitignore` 例外规则、`git check-ignore` | 日常够用；分支策略、PR 流程待练 |
 | API 设计（FastAPI / Flask） | 0 | | |
@@ -107,8 +108,8 @@
 | 技能 | 目标 | 当前 | 差距 / 怎么补 |
 |------|------|------|--------------|
 | Python | 4 | 2 | 补工程化：结构、异常、测试 |
-| Prompt Engineering | 4 | 0 | **先补这个**，后面全靠它 |
-| 流式输出与 SSE | 4 | 2 | 补协议层 + 用 FastAPI 暴露 SSE 接口 |
+| Prompt Engineering | 4 | 1 | **先补这个**，后面全靠它 |
+| 流式输出与 SSE | 4 | 3 | 自己实现一次 SSE 服务端 + 用 FastAPI 暴露接口 |
 | Function Calling / Tool Use | 4 | 0 | Agent 的地基 |
 | RAG | 3 | 0 | 能独立搭一条链路并给出评测数字 |
 | 一个 Agent 框架（建议 LangGraph） | 4 | 0 | 深入一个，别贪多 |
