@@ -2,21 +2,24 @@
 # from langchain.chat_models import ChatOpenAI
 
 import os
+import asyncio
+from typing import List
 
 from loguru import logger
 
-from openai import OpenAI
+from pydantic import BaseModel
+from openai import OpenAI, AsyncOpenAI
 from anthropic import Anthropic
-from pi_agent import PiClient, PiRunError
+from pi_agent import PiClient, AsyncPiClient, PiRunError
 
 # from dotenv import load_dotenv
 # load_dotenv()  # 加载 .env 文件
 
 
-def openai_client(client = OpenAI(), MODEL_NAME = "agnes-3.0-flash"):
+def openai_client(client = OpenAI(), model = "agnes-3.0-flash"):
     # base_url = os.environ.get("OPENAI_BASE_URL")
     # api_key = os.environ.get("OPENAI_API_KEY")  # 拿到 .env API Key
-    # MODEL_NAME = os.environ.get("OPENAI_MODEL_NAME")  # 拿到 .env MODEL_NAME
+    # model = os.environ.get("OPENAI_MODEL")  # 拿到 .env model
     # client = OpenAI(base_url=base_url, api_key=api_key)  # 建client
 
     messages=[
@@ -26,7 +29,7 @@ def openai_client(client = OpenAI(), MODEL_NAME = "agnes-3.0-flash"):
 
     # 发送请求
     response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=model,
         messages=messages,
     )
     # 打印结果
@@ -34,7 +37,7 @@ def openai_client(client = OpenAI(), MODEL_NAME = "agnes-3.0-flash"):
 
     # 发送流式请求
     stream_response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=model,
         messages=messages,
         stream=True
     )
@@ -47,7 +50,7 @@ def openai_client(client = OpenAI(), MODEL_NAME = "agnes-3.0-flash"):
 
     # 也可以使用 with 语法来处理流式请求
     with client.chat.completions.create(
-        model=MODEL_NAME,
+        model=model,
         messages=messages,
         stream=True
     ) as stream:
@@ -58,7 +61,62 @@ def openai_client(client = OpenAI(), MODEL_NAME = "agnes-3.0-flash"):
         print()  # 换行
 
 
-def anthropic_client(client = Anthropic(), MODEL_NAME = "agnes-3.0-flash"):
+async def async_openai_client(client = AsyncOpenAI(), model = "agnes-3.0-flash"):
+    class Step(BaseModel):
+        explanation: str
+        output: str
+
+
+    class MathResponse(BaseModel):
+        steps: List[Step]
+        final_answer: str
+
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Hello, OpenAI,1024*1024?"},
+    ]
+
+    response = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+    )
+    print(response.choices[0].message.content)
+
+    stream_response = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        stream=True,
+    )
+    async for chunk in stream_response:
+        content = chunk.choices[0].delta.content
+        if content:
+            print(content, end="", flush=True)
+    print()
+
+    response = await client.chat.completions.parse(
+        model=model,
+        messages=messages,
+        response_format=MathResponse,
+    )
+    message = response.choices[0].message
+    if message.parsed:
+        print(message.parsed.steps)
+        print("answer: ", message.parsed.final_answer)
+
+    
+    async with client.chat.completions.stream(
+        model=model,
+        messages=messages,
+        response_format=MathResponse,
+    ) as stream:
+        async for event in stream:
+            if event.type == "content.delta":
+                print(event.delta, end="", flush=True)
+            elif event.type == "content.done":
+                print("\nparsed:", event.parsed)
+
+
+def anthropic_client(client = Anthropic(), model = "agnes-3.0-flash"):
     # base_url = os.environ.get("ANTHROPIC_BASE_URL")
     # api_key = os.environ.get("ANTHROPIC_API_KEY")  # 拿到 .env API Key
     # client = Anthropic(base_url=base_url, api_key=api_key)  # 建client
@@ -66,7 +124,7 @@ def anthropic_client(client = Anthropic(), MODEL_NAME = "agnes-3.0-flash"):
     # 发送请求
     message = client.messages.create(
         max_tokens=1024,
-        model=MODEL_NAME,
+        model=model,
         system="You are a helpful assistant.",
         messages=[{"role": "user", "content": "Hello, Claude, how are you?"},],
     )
@@ -76,7 +134,7 @@ def anthropic_client(client = Anthropic(), MODEL_NAME = "agnes-3.0-flash"):
     # 发送流式请求
     stream_response = client.messages.create(
         max_tokens=1024,
-        model=MODEL_NAME,
+        model=model,
         system="You are a helpful assistant.",
         messages=[{"role": "user", "content": "Hello, Claude, how are you?"},],
         stream=True
@@ -92,7 +150,7 @@ def anthropic_client(client = Anthropic(), MODEL_NAME = "agnes-3.0-flash"):
     # 也可以使用 with 语法来处理流式请求
     with client.messages.stream(
         max_tokens=1024,
-        model=MODEL_NAME,
+        model=model,
         system="You are a helpful assistant.",
         messages=[{"role": "user", "content": "Hello, Claude, how are you?"},],
     ) as stream:
@@ -101,22 +159,42 @@ def anthropic_client(client = Anthropic(), MODEL_NAME = "agnes-3.0-flash"):
         print()  # 换行
 
 
-def pi_client(client = PiClient(), provider = None, MODEL_NAME = "agnes-3.0-flash"):
+def pi_client(provider = "agnes", model = "agnes-3.0-flash"):
+    # https://pypi.org/project/pi-agent-python-sdk/#1
     # 发送请求
-    with PiClient(provider=provider, model=MODEL_NAME) as client:
-        result = client.run("Hello, Pi, how are you?")
-        print(result)
+    with PiClient(provider=provider, model=model) as client:
+        try:
+            print(client.run("hi").text)
+        except PiRunError as exc:
+            print("stop_reason:", exc.result.stop_reason)
 
     # 发送流式请求
-    with PiClient(provider=provider, model=MODEL_NAME) as client:
+    with PiClient(provider=provider, model=model) as client:
+        levels = client.get_available_thinking_levels()
+        # print("available:", levels)
+        if "high" in levels:
+            client.set_thinking_level("high")
+        # print(client.get_state()["thinkingLevel"])
+        # print(client.get_state()["sessionId"])
+        # print(client["provider"], client["id"])
+        # selected = client.set_model("agnes", "agnes-2.5-flash")
         with client.stream("Hello, Pi, how are you?") as stream:
-            for text in stream:
-                print(text.text_delta, end="", flush=True)
+            for event in stream:
+                if event.text_delta is not None:
+                    print(event.text_delta, end="", flush=True)
             result = stream.result()
-        print(result.stop_reason)
+        print(f"\nStop reason: {result.stop_reason}")
+
+
+async def async_pi_client(provider = "agnes", model = "agnes-3.0-flash") -> None:
+    async with AsyncPiClient(provider=provider, model=model) as client:
+        result = await client.run("Hello, Pi, how are you?")
+        print(result.text)
 
 
 if __name__ == "__main__":
     # openai_client()
+    asyncio.run(async_openai_client())
     # anthropic_client()
-    pi_client(provider=os.environ.get("OPENAI_BASE_URL"))
+    # pi_client()
+    # asyncio.run(async_pi_client())
