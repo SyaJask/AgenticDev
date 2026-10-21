@@ -19,7 +19,7 @@ from pi_agent import PiClient, AsyncPiClient, PiRunError
 def openai_client(client = OpenAI(), model = "agnes-3.0-flash"):
     # base_url = os.environ.get("OPENAI_BASE_URL")
     # api_key = os.environ.get("OPENAI_API_KEY")  # 拿到 .env API Key
-    # model = os.environ.get("OPENAI_MODEL")  # 拿到 .env model
+    # model = os.environ.get("MODEL")  # 拿到 .env model
     # client = OpenAI(base_url=base_url, api_key=api_key)  # 建client
 
     messages=[
@@ -120,13 +120,15 @@ def anthropic_client(client = Anthropic(), model = "agnes-3.0-flash"):
     # base_url = os.environ.get("ANTHROPIC_BASE_URL")
     # api_key = os.environ.get("ANTHROPIC_API_KEY")  # 拿到 .env API Key
     # client = Anthropic(base_url=base_url, api_key=api_key)  # 建client
+    system = "You are a helpful assistant."
+    messages = [{"role": "user", "content": "Hello, Claude, how are you?"},]
 
     # 发送请求
     message = client.messages.create(
         max_tokens=1024,
         model=model,
-        system="You are a helpful assistant.",
-        messages=[{"role": "user", "content": "Hello, Claude, how are you?"},],
+        system=system,
+        messages=messages,
     )
     # 打印结果
     print(message.content[0].text)
@@ -135,8 +137,8 @@ def anthropic_client(client = Anthropic(), model = "agnes-3.0-flash"):
     stream_response = client.messages.create(
         max_tokens=1024,
         model=model,
-        system="You are a helpful assistant.",
-        messages=[{"role": "user", "content": "Hello, Claude, how are you?"},],
+        system=system,
+        messages=messages,
         stream=True
     )
     # 逐段打印模型返回的内容
@@ -151,8 +153,8 @@ def anthropic_client(client = Anthropic(), model = "agnes-3.0-flash"):
     with client.messages.stream(
         max_tokens=1024,
         model=model,
-        system="You are a helpful assistant.",
-        messages=[{"role": "user", "content": "Hello, Claude, how are you?"},],
+        system=system,
+        messages=messages,
     ) as stream:
         for text in stream.text_stream:
             print(text, end="", flush=True)
