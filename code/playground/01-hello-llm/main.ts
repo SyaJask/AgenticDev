@@ -2,7 +2,7 @@
 
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { parseMessage } from '@anthropic-ai/sdk/lib/parser.mjs';
+import { createAgentSession } from "@earendil-works/pi-coding-agent";
 
 
 export async function openai_client(client: OpenAI = new OpenAI(), model: string = 'agnes-3.0-flash') {
@@ -10,7 +10,7 @@ export async function openai_client(client: OpenAI = new OpenAI(), model: string
     //     baseURL: process.env['OPENAI_BASE_URL'],
     //     apiKey: process.env['OPENAI_API_KEY'],
     // });
-    const messages = [{ content: 'Hello, OpenAI,how are you?', role: 'developer' }]
+    const messages = [{ content: 'Hello, OpenAI,how are you?', role: 'system' }]
 
     // 发送请求
     const response = await client.chat.completions.create({
@@ -30,6 +30,7 @@ export async function openai_client(client: OpenAI = new OpenAI(), model: string
         if (text) process.stdout.write(text);
     }
 }
+
 
 export async function anthropic_client(client: Anthropic = new Anthropic(), model: string = 'agnes-3.0-flash') {
     // const client = new Anthropic({
@@ -63,9 +64,20 @@ export async function anthropic_client(client: Anthropic = new Anthropic(), mode
     }
 }
 
+
+export async function pi_client(model: string = 'agnes-3.0-flash') {
+    const { session } = await createAgentSession({
+        model,
+        thinkingLevel: 'high',
+    });
+    try {
+        await session.prompt("What files are in the current directory?");
+        console.log(session.getLastAssistantText());
+    } finally {
+        session.dispose();
+    }
+}
+
 // openai_client()
 anthropic_client()
-
-
-
-
+pi_client()
