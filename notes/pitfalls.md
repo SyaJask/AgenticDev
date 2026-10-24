@@ -29,6 +29,111 @@
 
 <!-- 在此追加新记录，最新的放最上面 -->
 
+### [2026-10-24] 沙箱里 `pnpm why` 报 ERR_SQLITE_ERROR：store 索引库在工作区外
+
+**现象**：在 DSH 沙箱里想确认某个包是谁带进来的，`pnpm why` 直接失败：
+
+```text
+PS ...\code\playground\01-hello-llm> pnpm why @google/genai
+[ERR_SQLITE_ERROR] unable to open database file
+
+pnpm: unable to open database file
+    at file:///.../pnpm/11.3.0/dist/pnpm.mjs:16156 ... new StoreIndex ...
+    at ... buildDependentsTree ...
+```
+
+对比：同一项目的 `pnpm install` 完全正常——但那是在**自己的 PowerShell（沙箱外）**里跑的。所以这不是项目坏了，是"沙箱里的命令碰了沙箱外的目录"。
+
+**原因**：
+
+1. `pnpm why` 要构建"谁依赖谁"的树，会打开 pnpm 的 **store 索引库**（SQLite）。栈里的 `new StoreIndex` → `buildDependentsTree` 就是这一步。
+2. 本机这次安装实际用的 store 是 **`D:\.pnpm-store\v11`**（在工作区之外，`index.db` 28 MB）。权威记录在 `node_modules/.modules.yaml`：
+
+   ```text
+   "storeDir": "D:\\.pnpm-store\\v11",
+   "virtualStoreDir": "D:\\ai2all\\...\\node_modules\\.pnpm",
+   ```
+
+3. 沙箱进程不能写工作区之外的目录，而 SQLite 打开库要建/锁日志文件 → 打不开 → pnpm 把它翻成 `[ERR_SQLITE_ERROR] unable to open database file`。
+4. **容易看走眼的地方**：`pnpm store path` 打印的是"按当前目录算出来的 store 路径"，和这次安装实际用的 store 可能不是同一个（本机就出现过：`pnpm store path` 报工作区里的 `.pnpm-store\v11`，而 `.modules.yaml` 里记的是 `D:\.pnpm-store\v11`）。判断实际用的是哪一个，看 `.modules.yaml`。
+
+验证这条判断的两个动作：
+
+```powershell
+# 看安装时实际用的 store
+Select-String -Path node_modules\.modules.yaml -Pattern 'storeDir'
+
+# 那个目录沙箱能不能写（这里会失败，就是它）
+Set-Content 'D:\.pnpm-store\__p.tmp' x; Remove-Item 'D:\.pnpm-store\__p.tmp'
+```
+
+**解法**：查依赖关系根本不需要 pnpm，直接读 `pnpm-lock.yaml`：
+
+```powershell
+# 找到"谁声明了这个依赖"：命中行是依赖声明（缩进 6 空格），向上找最近的缩进 2 空格的快照名即为父包
+Select-String -Path pnpm-lock.yaml -Pattern "'@google/genai': 2.21.0" -Context 10,0
+```
+
+实测读出链路：`@earendil-works/pi-coding-agent → @earendil-works/pi-ai@1.4.0 → @google/genai@2.21.0 → protobufjs@7.6.6`。
+
+其他三条路：
+
+- 把这类命令放到**沙箱外**自己的终端里跑（最省事）；
+- 用 `npm ls <pkg>` 之类只读 lockfile 的方式（它不走 pnpm store）；
+- 把 store 指到工作区内（`pnpm config set store-dir <工作区里的路径>`），代价是缓存多存一份、和别的项目不共享。
+
+**教训**：看到 `unable to open database file` 先别怀疑 lockfile 损坏或配置错误——先问「**这条命令要写哪里**」。包管理器的 store / 缓存 / 索引默认都在工作区外，凡是需要读写 store 的命令（`why`、`store` 系列维护动作，以及可能包括在沙箱里跑 `install`）都会倒；只跟 lockfile 有关的结论，就直接读 `pnpm-lock.yaml`，比装一个能"解释"它的工具便宜。
+
+### [2026-10-24] 沙箱进不了工作区子目录：Windows 完整性标记只对「新建」对象继承
+
+**现象**：DSH 会话里让我提交代码，`git add/commit/status` 全部正常，但任何落到子目录的写操作都被系统拒绝：
+
+```text
+Set-Content: 对路径"D:\ai2all\projects\AgenticDev\notes\__probe.tmp"的访问被拒绝。
+Remove-Item: 对路径"...\code\playground\01-hello-llm\main.ts"的访问被拒绝。
+```
+
+而**在仓库根目录**建文件、删文件都正常。同一会话里 `git clean` 删子目录文件也失败（`failed to remove ...: Invalid argument`）。顺带症状：`git add` 一直警告 `CRLF will be replaced by LF`，`git checkout -f`、`git checkout-index -f -a` 都返回成功，但工作区文件行尾不变。
+
+**原因**（三层，缺一层都解释不通）：
+
+1. **沙箱进程是低完整性令牌**。`whoami /groups` 显示 `Mandatory Label\Low Mandatory Level  S-1-16-4096`。
+2. **Windows 的 MIC 先于 DACL 判断**：低完整性进程不能写比它级别高的对象，而且**没有标记的对象按 Medium 处理**（Microsoft Learn 原文）。工作区根目录被打了 `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)`，所以根下可写。
+3. **完整性标记只在对象创建时继承**，改了父目录的标记**不会回溯**已经存在的子对象。`code/`、`notes/`、`plan/`、`portfolio/` 都是在打标记之前就存在的，全都"无标记 = Medium"→ 被拒。
+
+验证方式：在根目录新建一个临时子目录，里面立刻可写可删；同样的写操作搬到 `code/` 就失败。这就把"根目录行、子目录不行"锁死在标记继承上。
+
+另外**权限条目本身是正常的**（owner 是自己、`protected=False`、DACL 继承正常、没有 deny），所以 DSH 自带的 ACL 诊断脚本给出 `VERDICT=NOT_THIS_CLASS`、`FIXED=0`——它负责的是另一类问题（缺 WRITE_DAC/WRITE_OWNER、外部应用留下的包 ACE）。**ACL 正常 ≠ 能写**。
+
+**解法**：
+
+```powershell
+$sid = '*' + ((whoami /user /fo csv | ConvertFrom-Csv)[0].SID)
+
+# 1) 打完整性标记要写 SACL，需要 WRITE_OWNER。
+#    目标上只有 Modify 时 /setintegritylevel 会被拒：Access is denied。
+icacls 'D:\ai2all\projects\AgenticDev' /grant "${sid}:(OI)(CI)(WO)" /t /c
+
+# 2) 给已存在的整棵子树补 Low 标记（此后新建对象会自动继承）
+icacls 'D:\ai2all\projects\AgenticDev' /setintegritylevel '(OI)(CI)Low' /t /c
+```
+
+三步自检，以后遇到同类问题直接照抄：
+
+```powershell
+whoami /groups | findstr 'S-1-16'                        # 我自己的完整性级别
+icacls <目录> | findstr 'Mandatory Label'                 # 对象有没有标记（空 = 无标记 = Medium）
+Set-Content <目录>\__p.tmp x; Remove-Item <目录>\__p.tmp   # 到底能不能写
+```
+
+**坑里的坑**：
+
+- `icacls /grant "${me}:..."` 里变量取空时，icacls 会写进一条指向 `S-1-5-32`（内建域本身，不是任何真实账号）的垃圾权限项。用 SID、先在终端 `echo` 确认变量非空。事后清理：`icacls <root> /remove:g '*S-1-5-32' /t /c`。
+- **管理员终端里跑过 `npm install`**，`node_modules` 的 owner 会变成 `BUILTIN\Administrators`，普通进程和沙箱进程之后都改不动它（等价于 Linux 里 `sudo npm install` 留下的 root 属主文件）。本仓这类对象有 2 万多个，补标记时全部 `Access is denied`；只能删掉在以自己身份运行的环境里重装。
+- **不要用 `icacls /reset` 修这个**：它把对象 ACL 还原成"继承自父级"，会把根目录上 DSH 加的授权项一起冲掉。
+
+**教训**：Windows 上"写不进去"要分三道闸门查——**完整性级别**（`whoami /groups`）→ **对象标记**（`icacls` 里的 `Mandatory Label`）→ **DACL 权限条目**。而且记住：**标记不会回溯已存在的对象**，无标记等于 Medium。另外，装依赖永远用自己的身份，别抬权。
+
 ### [2026-10-22] Python 默认参数在「函数定义时」求值 —— 可变/副作用默认参数是坑
 
 **现象**：学习代码里写了这样的签名：
