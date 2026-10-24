@@ -2,7 +2,10 @@
 
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { createAgentSession } from "@earendil-works/pi-coding-agent";
+import {
+    createAgentSession,
+    ModelRuntime,
+} from "@earendil-works/pi-coding-agent";
 
 
 export async function openai_client(client: OpenAI = new OpenAI(), model: string = 'agnes-3.0-flash') {
@@ -65,9 +68,18 @@ export async function anthropic_client(client: Anthropic = new Anthropic(), mode
 }
 
 
-export async function pi_client(model: string = 'agnes-3.0-flash') {
+export async function pi_client(providerId = 'agnes', modelId = 'agnes-3.0-flash') {
+    const modelRuntime = await ModelRuntime.create();
+    const model = modelRuntime.getModel(providerId, modelId);
+    console.log(model)
+
+    if (!model) {
+        throw new Error(`Pi 中找不到模型: ${providerId}/${modelId}。请检查 models.json 配置。`);
+    }
+
     const { session } = await createAgentSession({
         model,
+        modelRuntime,
         thinkingLevel: 'high',
     });
     try {
